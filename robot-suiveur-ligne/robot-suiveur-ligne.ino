@@ -1,10 +1,9 @@
 #define capteurExtremeGauche 2
-#define capteurCentreGauche 3
-#define capteurCentreDroite 4
 #define capteurExtremeDroite 5
 
-#define baseVitesse 100
-#define tournageVitesse 95
+#define baseVitesse 160
+#define tournageVitesse 200
+#define tournageVitesseLow 150
 
 #define ENA 10 
 #define IN1 6
@@ -16,8 +15,6 @@
 void setup() {
   // Configuration des capteurs
   pinMode(capteurExtremeGauche, INPUT);
-  pinMode(capteurCentreGauche, INPUT);
-  pinMode(capteurCentreDroite, INPUT);
   pinMode(capteurExtremeDroite, INPUT);
 
   // Configuration des moteurs
@@ -36,16 +33,6 @@ void setup() {
 // ====================
 
 // Avancer
-void reculer(int vitesse) {
-  digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, HIGH);
-  digitalWrite(IN4, LOW);
-  analogWrite(ENA, vitesse);
-  analogWrite(ENB, vitesse);
-}
-
-// Reculer
 void avancer(int vitesse) {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
@@ -55,24 +42,34 @@ void avancer(int vitesse) {
   analogWrite(ENB, vitesse);
 }
 
-// Tourner à gauche
-void gauche(int vitesse) {
+// Reculer
+void reculer(int vitesse) {
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, HIGH);
-  analogWrite(ENA, vitesse);
-  analogWrite(ENB, vitesse);
-}
-
-// Tourner à droite
-void droite(int vitesse) {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, HIGH);
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
   analogWrite(ENA, vitesse);
   analogWrite(ENB, vitesse);
+}
+
+// Tourner à gauche
+void gauche(int vitesse) {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA, tournageVitesseLow);
+  analogWrite(ENB, tournageVitesse);
+}
+
+// Tourner à droite
+void droite(int vitesse) {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENA, tournageVitesse);
+  analogWrite(ENB, tournageVitesseLow);
 }
 
 // Stopper les moteurs
@@ -90,15 +87,34 @@ void stopMoteur() {
 // ====================
 
 void loop() {
-  avancer(baseVitesse);
-  delay(1000);
-  droite(tournageVitesse);
-  delay(1000);
-  gauche(tournageVitesse);
-  delay(1000);
-  reculer(baseVitesse);
-  delay(1000);
-  stopMoteur();
-  delay(3000);
+  int gaucheVal = digitalRead(capteurExtremeGauche);
+  int droiteVal = digitalRead(capteurExtremeDroite);
 
+  Serial.print("Gauche: ");
+  Serial.print(gaucheVal);
+  Serial.print(" | Droite: ");
+  Serial.println(droiteVal);
+
+  if (gaucheVal == 0 && droiteVal == 0) {
+    avancer(baseVitesse);
+  }
+  
+  else if (gaucheVal == 1 && droiteVal == 0) {
+    gauche(tournageVitesse);
+  }
+  
+  else if (gaucheVal == 0 && droiteVal == 1) {
+    droite(tournageVitesse);
+  }
+  
+  else if (gaucheVal == 1 && droiteVal == 1) {
+    stopMoteur();
+    delay(100); 
+    
+    gauche(tournageVitesse);
+    delay(300);
+    
+  }
+
+  delay(10);
 }
