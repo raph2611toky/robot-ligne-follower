@@ -1,9 +1,14 @@
 #define capteurExtremeGauche 2
 #define capteurExtremeDroite 5
 
-#define baseVitesse 160
-#define tournageVitesse 200
-#define tournageVitesseLow 150
+#define baseVitesse 90
+#define tournageVitesse 100
+#define hauteVitesse 200
+#define maxVitesse 255
+
+#define temps90 410
+#define temps90Gauge 520
+#define tempsNorme 350
 
 #define ENA 10 
 #define IN1 6
@@ -53,27 +58,35 @@ void reculer(int vitesse) {
 }
 
 // Tourner à gauche
-void gauche(int vitesse) {
+void gauche_() {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
-  analogWrite(ENA, tournageVitesseLow);
-  analogWrite(ENB, tournageVitesse);
+}
+
+void gauche(int vitesse) {
+  gauche_();
+  analogWrite(ENA, vitesse);
+  analogWrite(ENB, vitesse);
 }
 
 // Tourner à droite
-void droite(int vitesse) {
+void droite_() {
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  analogWrite(ENA, tournageVitesse);
-  analogWrite(ENB, tournageVitesseLow);
+}
+
+void droite(int vitesse) {
+  droite_();
+  analogWrite(ENA, vitesse);
+  analogWrite(ENB, vitesse);
 }
 
 // Stopper les moteurs
-void stopMoteur() {
+void stop() {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
@@ -82,36 +95,67 @@ void stopMoteur() {
   analogWrite(ENB, 0);
 }
 
+// Tournure 90°
+void tournerGauche90(int temps, int vitesse){
+  avancer(baseVitesse);
+  delay(tempsNorme);
+  gauche_();
+  analogWrite(ENB, maxVitesse);
+  analogWrite(ENA, vitesse);
+  delay(temps);
+  stop();
+  avancer(baseVitesse);
+  delay(tempsNorme);
+  stop();
+}
+
+void tournerDroite90(int temps, int vitesse){
+  avancer(baseVitesse);
+  delay(tempsNorme);
+  droite_();
+  analogWrite(ENA, hauteVitesse);
+  analogWrite(ENB, vitesse);
+  delay(temps);
+  stop();
+  avancer(baseVitesse);
+  delay(tempsNorme);
+  stop();
+}
+
 // ====================
 // BOUCLE PRINCIPALE
 // ====================
 
 void loop() {
+  
   int gaucheVal = digitalRead(capteurExtremeGauche);
   int droiteVal = digitalRead(capteurExtremeDroite);
+
+  int noir = 1;
+  int blanc = 0;
 
   Serial.print("Gauche: ");
   Serial.print(gaucheVal);
   Serial.print(" | Droite: ");
   Serial.println(droiteVal);
 
-  if (gaucheVal == 0 && droiteVal == 0) {
+  if (gaucheVal == blanc && droiteVal == noir) {
+    gauche(tournageVitesse);
+  }
+  
+  else if (gaucheVal == noir && droiteVal == blanc) {
+    droite(tournageVitesse);
+  }
+
+  else if (gaucheVal == noir && droiteVal == noir) {
     avancer(baseVitesse);
   }
   
-  else if (gaucheVal == 1 && droiteVal == 0) {
-    gauche(tournageVitesse);
-  }
-  
-  else if (gaucheVal == 0 && droiteVal == 1) {
-    droite(tournageVitesse);
-  }
-  
-  else if (gaucheVal == 1 && droiteVal == 1) {
-    stopMoteur();
+  else if (gaucheVal == blanc && droiteVal == blanc) {
+    stop();
     delay(100); 
     
-    gauche(tournageVitesse);
+    avancer(tournageVitesse);
     delay(300);
     
   }
