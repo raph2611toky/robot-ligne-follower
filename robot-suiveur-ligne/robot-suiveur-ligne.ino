@@ -3,12 +3,6 @@
 
 #define baseVitesse 90
 #define tournageVitesse 100
-#define hauteVitesse 200
-#define maxVitesse 255
-
-#define temps90 410
-#define temps90Gauge 520
-#define tempsNorme 350
 
 #define ENA 10 
 #define IN1 6
@@ -93,33 +87,6 @@ void stop() {
   digitalWrite(IN4, LOW);
   analogWrite(ENA, 0);
   analogWrite(ENB, 0);
-}
-
-// Tournure 90°
-void tournerGauche90(int temps, int vitesse){
-  avancer(baseVitesse);
-  delay(tempsNorme);
-  gauche_();
-  analogWrite(ENB, maxVitesse);
-  analogWrite(ENA, vitesse);
-  delay(temps);
-  stop();
-  avancer(baseVitesse);
-  delay(tempsNorme);
-  stop();
-}
-
-void tournerDroite90(int temps, int vitesse){
-  avancer(baseVitesse);
-  delay(tempsNorme);
-  droite_();
-  analogWrite(ENA, hauteVitesse);
-  analogWrite(ENB, vitesse);
-  delay(temps);
-  stop();
-  avancer(baseVitesse);
-  delay(tempsNorme);
-  stop();
 }
 
 // ====================
