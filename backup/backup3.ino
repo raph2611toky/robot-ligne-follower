@@ -4,7 +4,7 @@
 #define capteurExtremeDroit 5
 
 #define baseVitesse 60
-#define tournageVitesse 90
+#define tournageVitesse 80
 #define tournageVitesseSlow 70
 
 #define ENA 10 
@@ -85,92 +85,55 @@ void virageOptimise(String direction){
   avancer(baseVitesse); delay(160);
 }
 
-void loop() {
+void loop(){
   readSensor();
+  int gaucheVal = sensor[0];
+  int droiteVal = sensor[3];
 
+  const int noir = 1;
+  const int blanc = 0;
   const int ligne = 0;
   const int fond = 1;
-  bool acted = false;
+  bool acted=false;
 
-  // --- 1. Ligne droite : deux capteurs centraux sur la ligne ---
-  if(sensor[1]==ligne && sensor[2]==ligne && sensor[0]==fond && sensor[3]==fond) {
-    avancer(baseVitesse);
-    acted = true;
+  // intersection (4)
+  if(sensor[0]==ligne && sensor[1]==ligne && sensor[2]==ligne && sensor[3]==ligne){
+    virageOptimise("gauche"); acted=true;
   }
+  // 3 capteurs
+  else if(sensor[0]==ligne && sensor[1]==ligne && sensor[2]==ligne){
+    virageOptimise("gauche"); acted=true;
+  }
+  else if(sensor[1]==ligne && sensor[2]==ligne && sensor[3]==ligne){
+    virageOptimise("droite"); acted=true;
+  }
+  // extrêmes
+  else if(sensor[0]==ligne){
+    virageOptimise("gauche"); acted=true;
+  }
+  else if(sensor[3]==ligne){
+    virageOptimise("droite"); acted=true;
+  }
+  // centres seuls pour avancer penché
+  else if(sensor[0]==fond && sensor[3]==fond){
+    if(sensor[1]==ligne && sensor[2]==fond){ avancerPencheGauche(baseVitesse); acted=true; }
+    else if(sensor[1]==fond && sensor[2]==ligne){ avancerPencheDroite(baseVitesse); acted=true; }
+    else if(sensor[1]==ligne && sensor[2]==ligne){ avancer(baseVitesse); acted=true; }
+  }
+  // correction fine avec centraux
+  else if(sensor[1]==ligne && sensor[2]==fond){ gauche(baseVitesse+10); acted=true; }
+  else if(sensor[1]==fond && sensor[2]==ligne){ droite(baseVitesse+10); acted=true; }
+  else if(sensor[1]==ligne && sensor[2]==ligne){ avancer(baseVitesse); acted=true; }
 
-  // --- 2. Correction légère ---
-  else if(sensor[1]==ligne && sensor[2]==fond && sensor[0]==fond && sensor[3]==fond) {
-    avancerPencheGauche(baseVitesse);
-    acted = true;
-  }
-  else if(sensor[2]==ligne && sensor[1]==fond && sensor[0]==fond && sensor[3]==fond) {
-    avancerPencheDroite(baseVitesse);
-    acted = true;
-  }
-  else if(sensor[1]==ligne && sensor[2]==fond && sensor[0]==ligne && sensor[3]==fond) {
-    gauche(baseVitesse);
-    acted = true;
-  }
-  else if(sensor[2]==ligne && sensor[1]==fond && sensor[0]==fond && sensor[3]==ligne) {
-    droite(baseVitesse);
-    acted = true;
-  }
-
-  // --- 3. Virage modéré (2-3 capteurs) ---
-  else if(sensor[0]==ligne && (sensor[1]==ligne || sensor[2]==ligne)) {
-    // tourne jusqu’à retrouver ligne centrale
-    avancer(baseVitesse);delay(100);
-    while(true){
-      gauche(tournageVitesse);
+  // perte totale de ligne
+  if(!acted){
+    if(sensor[0]==fond && sensor[1]==fond && sensor[2]==fond && sensor[3]==fond){
+      gauche(tournageVitesse); delay(90);
       readSensor();
-      if(sensor[1]==ligne && sensor[2]==ligne && sensor[0]==fond && sensor[3]==fond) break;
+      if(sensor[1]==ligne || sensor[2]==ligne) stop();
+      else { droite(tournageVitesse); delay(180); stop(); }
+    } else {
+      avancer(baseVitesse);
     }
-    acted = true;
-  }
-  else if(sensor[3]==ligne && (sensor[2]==ligne || sensor[1]==ligne)) {
-    avancer(baseVitesse);delay(100);
-    while(true){
-      droite(tournageVitesse);
-      readSensor();
-      if(sensor[1]==ligne && sensor[2]==ligne && sensor[0]==fond && sensor[3]==fond) break;
-    }
-    acted = true;
-  }
-
-  // --- 4. Intersection : tous les capteurs sur ligne ---
-  else if(sensor[0]==ligne && sensor[1]==ligne && sensor[2]==ligne && sensor[3]==ligne) {
-    avancer(baseVitesse); // traverse un peu l’intersection
-    // Choix direction (exemple : priorité à gauche)
-    while(true){
-      readSensor();
-      gauche(tournageVitesse);
-      if(sensor[1]==ligne && sensor[2]==ligne) break;
-    }
-    acted = true;
-  }
-
-  // --- 5. Fin de ligne (cul-de-sac) ---
-  else if(sensor[0]==fond && sensor[1]==fond && sensor[2]==fond && sensor[3]==fond) {
-    // vérifier si c’est temporaire (petit saut de ligne) ou vrai cul-de-sac
-    unsigned long t0 = millis();
-    bool retrouve_ = false;
-    while(millis() - t0 < 300) {
-      readSensor();
-      if(sensor[1]==ligne || sensor[2]==ligne) { retrouve_=true; break; }
-    }
-    if(!retrouve_) {
-      // vrai cul-de-sac : demi-tour fluide
-      while(true){
-        readSensor();
-        gauche(tournageVitesseSlow);
-        if(sensor[1]==ligne && sensor[2]==ligne) break;
-      }
-    }
-    acted = true;
-  }
-
-  // --- 6. Par défaut ---
-  if(!acted) {
-    avancer(baseVitesse);
   }
 }
