@@ -5,8 +5,8 @@
 #define capteurExtremeDroit 5
 
 #define baseVitesse 60
-#define tournageVitesse 55
-#define tournageVitesseMax 70
+#define tournageVitesse 50
+#define tournageVitesseMax 55
 
 #define ENA 10 
 #define IN1 6
@@ -59,23 +59,38 @@ void readSensor(){
 }
 
 /* === Virage 90° === */
+
+void tourner(String direction) {
+  if (direction == "GAUCHE") {
+    gauche(tournageVitesse);delay(100);
+    gaucheLent(baseVitesse);delay(100);
+    gauche(tournageVitesse);
+  }
+  else if (direction == "DROITE") {
+    droite(tournageVitesse);delay(100);
+    droiteLent(baseVitesse);delay(100);
+    droite(tournageVitesse);
+  }
+}
+
 void virage90(String direction) {
   Serial.print("→ Virage 90° "); Serial.println(direction);
   unsigned long start = millis();
+  dernierDirection = direction;
 
   if (direction == "GAUCHE") {
-    gauche(tournageVitesseMax);
-    while (millis() - start < 800) { // tourne environ 90°
+    tourner(direction);
+    while (millis() - start < 1800) { // tourne environ 90°
       readSensor();
-      if (sensor[3]==LIGNE || sensor[4]==LIGNE) break;
+      if (sensor[4]==LIGNE) break;
       delay(10);
     }
   } 
   else if (direction == "DROITE") {
-    droite(tournageVitesseMax);
-    while (millis() - start < 800) {
+    tourner(direction);
+    while (millis() - start < 1800) {
       readSensor();
-      if (sensor[0]==LIGNE || sensor[1]==LIGNE) break;
+      if (sensor[0]==LIGNE) break;
       delay(10);
     }
   }
@@ -88,12 +103,14 @@ void rechercherLigne() {
   unsigned long start = millis();
   if (dernierDirection == "GAUCHE") {
     droite(tournageVitesse);
+    dernierDirection = "DROITE";
     while (millis() - start < 1500) {
       readSensor();
       if (sensor[2]==LIGNE || sensor[1]==LIGNE || sensor[3]==LIGNE) return;
     }
   } else {
     gauche(tournageVitesse);
+    dernierDirection = "GAUCHE";
     while (millis() - start < 1500) {
       readSensor();
       if (sensor[2]==LIGNE || sensor[1]==LIGNE || sensor[3]==LIGNE) return;
@@ -113,14 +130,25 @@ void loop() {
   Serial.println(sensor[4]);
 
   // --- Correction douce selon capteurs extrêmes ---
-  if (sensor[0] == LIGNE) {
-    virage90("GAUCHE");
-    dernierDirection = "GAUCHE";
-    delay(50);
-  }
-  else if (sensor[4] == LIGNE) {
-    virage90("DROITE");
-    dernierDirection = "DROITE";
+  if (sensor[0] == LIGNE || sensor[4] == LIGNE){
+    if (sensor[0] == LIGNE && sensor[4] == LIGNE){
+      if (dernierDirection=="GAUCHE"){
+        virage90("DROITE");
+        dernierDirection = "DROITE";
+      }
+      else if (dernierDirection=="DROITE"){
+        virage90("GAUCHE");
+        dernierDirection = "GAUCHE";
+      }
+    }
+    if (sensor[0] == LIGNE) {
+      virage90("GAUCHE");
+      dernierDirection = "GAUCHE";
+    }
+    else if (sensor[4] == LIGNE) {
+      virage90("DROITE");
+      dernierDirection = "DROITE";
+    }
     delay(50);
   }
   // --- Ligne centrale ---
@@ -148,7 +176,8 @@ void loop() {
     else { 
       avancer(baseVitesse); 
     } 
-    dernierDirection = "AVANT"; action = true; }
+    dernierDirection = "AVANT";
+  }
   
   // --- Ligne perdue ---
   else if (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND) {
@@ -156,6 +185,7 @@ void loop() {
   }
   else {
     avancer(baseVitesse);
+    dernierDirection = "AVANT";
   }
 
   delay(10);
