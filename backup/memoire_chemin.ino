@@ -8,17 +8,17 @@
 #define tournageVitesse 50
 #define tournageVitesseMax 75
 
-#define ENA 10
+#define ENA 10 
 #define IN1 6
 #define IN2 7
-#define ENB 11
+#define ENB 11 
 #define IN3 9
 #define IN4 8
 
 struct Noeud {
-  char type;
-  char source;
-  bool exploreB;
+  String type;            // "T", "+", "L"
+  String source;          // "G", "D", "B", ou "H" d'où on vient, H:haut, B: bas, G:Gauche, D:Droite
+  bool exploreB;          // directions explorées
   bool exploreD;
   bool exploreH;
   bool exploreG;
@@ -27,11 +27,12 @@ struct Noeud {
 Noeud croisements[50];
 int nbCroisements = 0;
 int croisementActuel = -1;
-char chemin[301];
-int cheminLen = 0;
-char dernierDirection = '\0';
+
+String chemin = "";
+String dernierDirection = "";
 
 int sensor[5] = {0,0,0,0,0};
+
 const int LIGNE = 0;
 const int FOND = 1;
 
@@ -45,131 +46,145 @@ void setup() {
   pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   Serial.begin(9600);
   delay(1000);
-  chemin[0] = '\0';
 }
 
+/* === Fonctions de base de mouvement === */
 void avancer_(){ digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); }
 void avancer(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void reculer_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void reculer(int v){ reculer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
+
 void gauche_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,HIGH); }
 void gauche(int v){ gauche_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void gaucheLent(int v){ avancer_(); analogWrite(ENA,(v*19)/20); analogWrite(ENB,v); }
+
 void droite_(){ digitalWrite(IN1,LOW); digitalWrite(IN2,HIGH); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void droite(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,(v*19)/20); }
+
 void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,LOW); analogWrite(ENA,0); analogWrite(ENB,0); }
 
+/* === Lecture capteurs === */
 void readSensor(){
   sensor[0]=digitalRead(capteurExtremeGauche);
-  sensor[1]=digitalRead(capteurCentralGauche);
-  sensor[2]=digitalRead(capteurCentral);
+  sensor[1]=digitalRead(capteurCentralGauche); 
+  sensor[2]=digitalRead(capteurCentral); 
   sensor[3]=digitalRead(capteurCentralDroit);
   sensor[4]=digitalRead(capteurExtremeDroit);
 }
 
-void tourner(char dir) {
-  if (dir == 'G') {
+/* === Virage 90° === */
+
+void tourner(String direction) {
+  if (direction == "GAUCHE") {
     gauche(tournageVitesse);delay(100);
     gaucheLent(baseVitesse);delay(100);
     gauche(tournageVitesse);
   }
-  else if (dir == 'D') {
+  else if (direction == "DROITE") {
     droite(tournageVitesse);delay(100);
     droiteLent(baseVitesse);delay(100);
     droite(tournageVitesse);
   }
 }
 
-void virage90(char dir) {
+void virage90(String direction) {
+  Serial.print("→ Virage 90° "); Serial.println(direction);
   unsigned long start = millis();
-  dernierDirection = dir;
-  if (dir == 'G') {
-    tourner(dir);
-    while (millis() - start < 1800) {
+  dernierDirection = direction;
+
+  if (direction == "GAUCHE") {
+    tourner(direction);
+    while (millis() - start < 1800) { // tourne environ 90°
       readSensor();
       if (sensor[4]==LIGNE && (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND)) break;
+      // delay(10);
     }
-  }
-  else if (dir == 'D') {
-    tourner(dir);
+  } 
+  else if (direction == "DROITE") {
+    tourner(direction);
     while (millis() - start < 1800) {
       readSensor();
       if (sensor[0]==LIGNE && (sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND)) break;
+      // delay(10);
     }
   }
   stop();
 }
 
-char choisirDirection(Noeud &n) {
-  if (n.source == 'B'){
-    if (!n.exploreD) { n.exploreD = true; return 'D'; }
-    else if (n.type == '+' && !n.exploreH){ n.exploreH = true; return 'D'; }
-    else if (!n.exploreG) { n.exploreG = true; return 'A'; }
-    return 'D';
+String choisirDirection(Noeud &n) {
+  // Priorité : droite > avant > gauche
+  if (n.source == "B"){
+    if (!n.exploreD) { n.exploreD = true; return "DROITE"; }
+    else if (n.type == "+" && !n.exploreH){ n.exploreH = true; return "DROITE"; }
+    else if (!n.exploreG) { n.exploreG = true; return "AVANT"; }
+    else return "DROITE";
   }
-  else if(n.type == 'T' && n.source == 'G'){
+  else if(n.type == "T" && n.source == "G"){
     if (!n.exploreG){ n.exploreG = true; }
-    if (!n.exploreB){ n.exploreB = true; return 'D';}
-    else if (!n.exploreD){ n.exploreD = true; return 'D';}
-    return 'A';
+    if (!n.exploreB){ n.exploreB = true; return "DROITE";}
+    else if (!n.exploreD){ n.exploreD = true; return "DROITE";}
+    return "AVANT";
   }
-  else if(n.type == 'T' && n.source == 'D'){
-    if (!n.exploreD){ n.exploreD = true;return 'D'; }
-    else if (!n.exploreB){ n.exploreB = true; return 'G';}
-    else if (!n.exploreG){ n.exploreG = true;return 'A'; }
-    return 'G';
+  else if(n.type == "T" && n.source == "D"){
+    if (!n.exploreD){ n.exploreD = true;return "DROITE"; }
+    else if (!n.exploreB){ n.exploreB = true; return "GAUCHE";}
+    if (!n.exploreG){ n.exploreG = true;return "AVANT"; }
+    return "GAUCHE";
   }
 }
 
-char getSymmetricDirection(char* chemin) {
-  int posU = -1;
-  for (int i = cheminLen - 1; i >= 0; i--) {
-    if (chemin[i] == 'U') { posU = i; break; }
-  }
+char getSymmetricDirection(String chemin) {
+  int posU = chemin.lastIndexOf('U');
   if (posU == -1) return '\0';
-  char apresU[100] = "";
-  int lenA = 0;
-  for (int i = posU + 1; i < cheminLen; i++) {
-    char c = chemin[i];
+
+  String apresU = "";
+  for (int i = posU + 1; i < chemin.length(); i++) {
+    char c = chemin.charAt(i);
     if (c == 'a' || c == 'g' || c == 'd' || c == 'A' || c == 'G' || c == 'D') {
-      apresU[lenA++] = c;
+      apresU += c;
     }
   }
-  apresU[lenA] = '\0';
-  int n = lenA;
+
+  int n = apresU.length(); 
   if (n == 0) return '\0';
-  char avantU[100] = "";
-  int lenB = 0;
+
+  String avantU = "";
   for (int i = 0; i < posU; i++) {
-    char c = chemin[i];
+    char c = chemin.charAt(i);
     if (c == 'a' || c == 'g' || c == 'd' || c == 'A' || c == 'G' || c == 'D') {
-      avantU[lenB++] = c;
+      avantU += c;
     }
   }
-  avantU[lenB] = '\0';
-  if (lenB < n + 1) return '\0';
-  int indexAvant = lenB - (n + 1);
-  char dir = avantU[indexAvant];
+
+  if (avantU.length() < n + 1) return '\0';
+
+  int indexAvant = avantU.length() - (n + 1);
+  char dir = avantU.charAt(indexAvant);
+
   if (dir == 'g' || dir == 'G' || dir == 'a' || dir == 'A' || dir == 'd' || dir == 'D') return dir;
+
   return '\0';
 }
 
 void enregistrerChemin(char c) {
-  chemin[cheminLen++] = c;
-  chemin[cheminLen] = '\0';
+  chemin += c;
 }
 
+
+/* === Recherche de ligne perdue === */
 void rechercherLigne() {
   unsigned long start = millis();
-  if (dernierDirection == 'G') {
+  if (dernierDirection == "GAUCHE") {
     droite(tournageVitesseMax);delay(400);
+    // dernierDirection = "DROITE";
     while (millis() - start < 3000) {
       readSensor();
       if (sensor[1]==LIGNE || sensor[0]==LIGNE) return;
     }
   } else {
     gauche(tournageVitesseMax);delay(400);
+    // dernierDirection = "GAUCHE";
     while (millis() - start < 3000) {
       readSensor();
       if (sensor[3]==LIGNE || sensor[4]==LIGNE) return;
@@ -178,78 +193,86 @@ void rechercherLigne() {
   stop();
 }
 
+/* === BOUCLE PRINCIPALE === */
 void loop() {
   readSensor();
-  if (sensor[0]==LIGNE && (sensor[1]==LIGNE || sensor[2]==LIGNE || sensor[3]==LIGNE) && sensor[4]==LIGNE) {
+
+  // --- Correction douce selon capteurs extrêmes ---
+  if (sensor[0]==LIGNE && sensor[1]==LIGNE && sensor[2]==LIGNE && sensor[3]==LIGNE && sensor[4]==LIGNE) {
+
     char dirSym = getSymmetricDirection(chemin);
-    if (dirSym == 'D' && croisementActuel >= 0 && croisements[croisementActuel].type == 'T') {
-      croisements[croisementActuel].type = '+';
+    if (dirSym == "D" && croisementActuel >= 0 && croisements[croisementActuel].type == "T") {
+      croisements[croisementActuel].type = "+";
     } else {
       nbCroisements++;
       croisementActuel = nbCroisements - 1;
-      croisements[croisementActuel].type = 'T';
-      if (dirSym == 'g'){
-        croisements[croisementActuel].source = 'D';
+      croisements[croisementActuel].type = "T";
+      if (dirSym == "g"){
+        croisements[croisementActuel].source = "D";
         croisements[croisementActuel].exploreB = true;
         croisements[croisementActuel].exploreD = true;
         croisements[croisementActuel].exploreG = false;
         croisements[croisementActuel].exploreH = false;
       }
-      else if (dirSym == 'd'){
-        croisements[croisementActuel].source = 'g';
+      else if (dirSym == "d"){
+        croisements[croisementActuel].source = "g";
         croisements[croisementActuel].exploreB = true;
         croisements[croisementActuel].exploreD = false;
         croisements[croisementActuel].exploreG = true;
         croisements[croisementActuel].exploreH = false;
       }
       else {
-        croisements[croisementActuel].source = 'B';
+        croisements[croisementActuel].source = "B";
         croisements[croisementActuel].exploreB = true;
         croisements[croisementActuel].exploreD = false;
         croisements[croisementActuel].exploreG = false;
         croisements[croisementActuel].exploreH = false;
       }
     }
-    char dir = choisirDirection(croisements[croisementActuel]);
-    if (dir == 'D') {
-      virage90('D');
-      dernierDirection = 'D';
+
+    String dir = choisirDirection(croisements[croisementActuel]);
+
+    if (dir == "DROITE") { 
+      virage90("DROITE");
+      dernierDirection = "DROITE"; 
       enregistrerChemin('D');
-      if (!croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true;
-      else if (!croisements[croisementActuel].exploreH) croisements[croisementActuel].exploreH = true;
-      else if (croisements[croisementActuel].type == '+' && !croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true;
-      else if (!croisements[croisementActuel].exploreB) croisements[croisementActuel].exploreB = true;
+      if (!croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true; 
+      else if (!croisements[croisementActuel].exploreH) croisements[croisementActuel].exploreH = true; 
+      else if (croisements[croisementActuel].type == "+" && !croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true; 
+      else if (!croisements[croisementActuel].exploreB) croisements[croisementActuel].exploreB = true; 
     }
-    else if (dir == 'G') {
-      virage90('G');
-      dernierDirection = 'G';
-      enregistrerChemin('G');
-      if (!croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true;
-      else if (croisements[croisementActuel].type == '+' && !croisements[croisementActuel].exploreH) croisements[croisementActuel].exploreH = true;
-      else if (croisements[croisementActuel].type == '+' && !croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true;
-      else if (!croisements[croisementActuel].exploreB) croisements[croisementActuel].exploreB = true;
+    else if (dir == "GAUCHE") { 
+      virage90("GAUCHE");
+      dernierDirection = "GAUCHE"; 
+      enregistrerChemin('G'); 
+      if (!croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true; 
+      else if (croisements[croisementActuel].type == "+" && !croisements[croisementActuel].exploreH) croisements[croisementActuel].exploreH = true; 
+      else if (croisements[croisementActuel].type == "+" && !croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true; 
+      else if (!croisements[croisementActuel].exploreB) croisements[croisementActuel].exploreB = true; 
     }
-    else if (dir == 'A') {
+    else if (dir == "AVANT") { 
       avancer(baseVitesse);
-      dernierDirection = 'A';
-      enregistrerChemin('A');
-      if (!croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true;
-      else if (!croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true;
+      dernierDirection = "AVANT"; 
+      enregistrerChemin('A'); 
+      if (!croisements[croisementActuel].exploreG) croisements[croisementActuel].exploreG = true; 
+      else if (!croisements[croisementActuel].exploreD) croisements[croisementActuel].exploreD = true; 
     }
+
     dernierDirection = dir;
   }
 
   if (sensor[4] == LIGNE) {
-    virage90('D');
-    dernierDirection = 'D'; enregistrerChemin('d');
+    virage90("DROITE");
+    dernierDirection = "DROITE"; enregistrerChemin('d');
     delay(10);
   }
-  
   else if (sensor[0] == LIGNE) {
-    virage90('G');
-    dernierDirection = 'G'; enregistrerChemin('g');
-    delay(10);
+    virage90("GAUCHE");
+    dernierDirection = "GAUCHE"; enregistrerChemin('g');
+    delay(10);     
   }
+
+  // --- Ligne centrale ---
   else if (sensor[2] == LIGNE) {
     if (sensor[3] == LIGNE) {
       droiteLent(baseVitesse);
@@ -258,15 +281,18 @@ void loop() {
       gaucheLent(baseVitesse);
     }
     else avancer(baseVitesse);
-    dernierDirection = 'A'; enregistrerChemin('a');
+    dernierDirection = "AVANT"; enregistrerChemin('a');
   }
+  
+  // --- Ligne perdue ---
   else if (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND) {
     rechercherLigne();
-    dernierDirection = 'U';enregistrerChemin('U');
+    dernierDirection = "U";enregistrerChemin('U');
   }
   else {
     avancer(baseVitesse);
-    dernierDirection = 'A'; enregistrerChemin('a');
+    dernierDirection = "AVANT"; enregistrerChemin('a');
   }
+
   delay(10);
 }
