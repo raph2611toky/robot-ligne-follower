@@ -4,8 +4,9 @@
 #define capteurCentralDroit 4
 #define capteurExtremeDroit 5
 
-#define baseVitesse 50
-#define tournageVitesse 80
+#define baseVitesse 70
+#define tournageVitesse 65
+#define tournageVitesseMax 100
 
 #define ENA 10 
 #define IN1 6
@@ -16,6 +17,9 @@
 
 int sensor[5] = {0,0,0,0,0};
 String dernierDirection = "";
+
+const int LIGNE = 0;
+  const int FOND = 1;
 
 void setup() {
   pinMode(capteurExtremeGauche, INPUT);
@@ -34,12 +38,17 @@ void avancer_(){ digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(I
 void avancer(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void reculer_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void reculer(int v){ reculer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
+
 void gauche_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,HIGH); }
 void gauche(int v){ gauche_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void gaucheLent(int v){ avancer_(); analogWrite(ENA,(v*4)/5); analogWrite(ENB,v); }
+void gaucheMort(int v){ gauche_(); analogWrite(ENA,v/2); analogWrite(ENB,v); }
+void gaucheLent(int v){ avancer_(); analogWrite(ENA,(v*9)/10); analogWrite(ENB,v); }
+
 void droite_(){ digitalWrite(IN1,LOW); digitalWrite(IN2,HIGH); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void droite(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,(v*4)/5); }
+void droiteMort(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v/2); }
+void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,(v*9)/10); }
+
 void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,LOW); analogWrite(ENA,0); analogWrite(ENB,0); }
 
 /* === Lecture capteurs === */
@@ -52,40 +61,38 @@ void readSensor(){
 }
 
 /* === Virage à 90° (optimisé) === */
-void virage90(String direction) {
-  const int LIGNE = 0;
-  const int FOND = 1;
+void tourner(String direction) {
+  if (direction == "GAUCHE") {
+    gauche(tournageVitesseMax);delay(300);
+  }
+  else if (direction == "DROITE") {
+    droite(tournageVitesseMax);delay(300);
+  }
+}
 
+void virage90(String direction) {
   Serial.print("→ Virage 90° "); Serial.println(direction);
   unsigned long start = millis();
 
   if (direction == "GAUCHE") {
-    gauche(tournageVitesse);
-    delay(200); // amorce de rotation
+    tourner("GAUCHE");
     while (true) {
       readSensor();
-      // quand le capteur central ou central droit retrouve la ligne -> fin du virage
-      if (sensor[2] == LIGNE || sensor[3] == LIGNE) break;
-      // sécurité anti-boucle infinie
+      if (sensor[1] == LIGNE || sensor[2] == LIGNE || sensor[3] == LIGNE || sensor[4] == LIGNE) break;
       if (millis() - start > 2500) break;
+      delay(10);
     }
   } 
   else if (direction == "DROITE") {
-    droite(tournageVitesse);
-    delay(200);
+    tourner("DROITE");
     while (true) {
       readSensor();
-      if (sensor[2] == LIGNE || sensor[1] == LIGNE) break;
+      if (sensor[3] == LIGNE || sensor[2] == LIGNE || sensor[1] == LIGNE || sensor[0] == LIGNE) break;
       if (millis() - start > 2500) break;
+      delay(10);
     }
   }
-
   stop();
-  delay(80);
-  avancer(baseVitesse);
-  delay(120);
-  stop();
-  Serial.println("↳ Fin du virage 90°");
 }
 
 /* === Demi-tour fluide au cul-de-sac === */
@@ -95,7 +102,7 @@ void demiTour(){
   gauche(tournageVitesse);
   while (millis() - start < 3000) {
     readSensor();
-    if(sensor[1]==0 || sensor[2]==0) { // LIGNE retrouvée
+    if (sensor[2]==LIGNE && (sensor[1]==LIGNE || sensor[3]==LIGNE)) {
       stop();
       return;
     }
@@ -106,9 +113,6 @@ void demiTour(){
 /* === BOUCLE PRINCIPALE === */
 void loop() {
   readSensor();
-
-  const int LIGNE = 0;
-  const int FOND = 1;
 
   Serial.print(sensor[0]); Serial.print(" ");
   Serial.print(sensor[1]); Serial.print(" ");
