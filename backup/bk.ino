@@ -4,7 +4,7 @@
 #define capteurCentralDroit 4
 #define capteurExtremeDroit 5
 
-#define baseVitesse 90
+#define baseVitesse 55
 #define tournageVitesse 50
 #define tournageVitesseMax 75
 
@@ -14,9 +14,6 @@
 #define ENB 11 
 #define IN3 9
 #define IN4 8
-
-int currentSpeedA = 0;
-int currentSpeedB = 0;
 
 String dernierDirection = "";
 
@@ -37,40 +34,19 @@ void setup() {
   delay(1000);
 }
 
-void setMotorSpeed(int targetA, int targetB) {
-  int step = 5; 
-  if (currentSpeedA < targetA) currentSpeedA += step;
-  else if (currentSpeedA > targetA) currentSpeedA -= step;
-
-  if (currentSpeedB < targetB) currentSpeedB += step;
-  else if (currentSpeedB > targetB) currentSpeedB -= step;
-
-  currentSpeedA = constrain(currentSpeedA, 0, 255);
-  currentSpeedB = constrain(currentSpeedB, 0, 255);
-
-  analogWrite(ENA, currentSpeedA);
-  analogWrite(ENB, currentSpeedB);
-}
-
 /* === Fonctions de base de mouvement === */
 void avancer_(){ digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); }
-void avancer() {
-  avancer_();
-  setMotorSpeed(baseVitesse, baseVitesse);
-}
-
+void avancer(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void reculer_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void reculer(int v){ reculer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 
 void gauche_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,HIGH); }
 void gauche(int v){ gauche_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void gaucheLent(){ avancer_(); setMotorSpeed(baseVitesse * 0.8, baseVitesse); }
-void gaucheRapide(){ gauche_(); setMotorSpeed(tournageVitesseMax, tournageVitesseMax); }
+void gaucheLent(int v){ avancer_(); analogWrite(ENA,v*0.9); analogWrite(ENB,v); }
 
 void droite_(){ digitalWrite(IN1,LOW); digitalWrite(IN2,HIGH); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void droite(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void droiteLent(){ avancer_(); setMotorSpeed(baseVitesse, baseVitesse * 0.8); }
-void droiteRapide(){ droite_(); setMotorSpeed(tournageVitesseMax, tournageVitesseMax); }
+void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v*0.9); }
 
 void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,LOW); analogWrite(ENA,0); analogWrite(ENB,0); }
 
@@ -88,57 +64,69 @@ void readSensor(){
 void tourner(String direction) {
   if (direction == "GAUCHE") {
     gauche(tournageVitesse);delay(100);
-    gaucheLent();delay(100);
+    gaucheLent(baseVitesse);delay(100);
     gauche(tournageVitesse);
   }
   else if (direction == "DROITE") {
     droite(tournageVitesse);delay(100);
-    droiteLent();delay(100);
+    droiteLent(baseVitesse);delay(100);
     droite(tournageVitesse);
   }
 }
 
 void virage90(String direction) {
-  Serial.print("→ Virage 90° "); Serial.println(direction);
   unsigned long start = millis();
+  const int timeout = 3000;
   dernierDirection = direction;
 
   if (direction == "GAUCHE") {
-    tourner(direction);
-    while (millis() - start < 1800) { // tourne environ 90°
+    // tourner(direction);
+    gaucheLent(tournageVitesse);delay(100);
+    while (millis() - start < timeout) { // tourne environ 90°
+      gauche(tournageVitesse);
       readSensor();
-      if (sensor[4]==LIGNE && (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND)) break;
+      if ((sensor[3]==LIGNE || sensor[4]==LIGNE) && (sensor[0]==FOND && sensor[1]==FOND)) {
+        break;
+      }
+      if (sensor[3]==LIGNE)droiteLent(baseVitesse);
       // delay(10);
     }
   } 
   else if (direction == "DROITE") {
-    tourner(direction);
-    while (millis() - start < 1800) {
+    // tourner(direction);
+    gaucheLent(tournageVitesse);delay(100);
+    while (millis() - start < timeout) {
+      droite(tournageVitesse);
       readSensor();
-      if (sensor[0]==LIGNE && (sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND)) break;
+      if ((sensor[1]==LIGNE || sensor[0]==LIGNE) && (sensor[2]==FOND && sensor[3]==FOND)) {
+        break;
+      }
+      if (sensor[1]==LIGNE)gaucheLent(baseVitesse);
       // delay(10);
     }
   }
-  stop();
+  // stop();
 }
 
 /* === Recherche de ligne perdue === */
 void rechercherLigne() {
   unsigned long start = millis();
   if (dernierDirection == "GAUCHE") {
-    while (millis() - start < 1500) {
-      droiteRapide();
+    droite(tournageVitesseMax);delay(250);
+    // dernierDirection = "DROITE";
+    while (millis() - start < 3000) {
       readSensor();
-      if (sensor[2]==LIGNE || sensor[1]==LIGNE) return;
+      if (sensor[1]==LIGNE || sensor[0]==LIGNE) return;
     }
   } else {
-    while (millis() - start < 1500) {
-      gaucheRapide();
+    gauche(tournageVitesseMax);delay(250);
+    // dernierDirection = "GAUCHE";
+    while (millis() - start < 3000) {
       readSensor();
-      if (sensor[2]==LIGNE || sensor[3]==LIGNE) return;
+      if (sensor[3]==LIGNE || sensor[4]==LIGNE) return;
     }
   }
-  avancer();
+  // stop();
 }
 
 /* === BOUCLE PRINCIPALE === */
@@ -150,22 +138,44 @@ void loop() {
     dernierDirection = "DROITE";
   }
   else if (sensor[0] == LIGNE) {
-    virage90("GAUCHE");
-    dernierDirection = "GAUCHE";
+    avancer(baseVitesse);delay(100);stop();
+    readSensor();
+    if (sensor[1]==LIGNE || sensor[2]==LIGNE || sensor[3]==LIGNE){
+      if (sensor[3] == LIGNE) {
+        droiteLent(baseVitesse);
+      }
+      else if (sensor[1] == LIGNE) {
+        gaucheLent(baseVitesse);
+      }
+      else if (sensor[2] == LIGNE)  avancer(baseVitesse);
+      dernierDirection = "AVANT";
+    }
+    else {
+      reculer(baseVitesse);delay(100);
+      virage90("GAUCHE");
+      dernierDirection = "GAUCHE";
+    }
   }
+
+  // --- Ligne centrale ---
   else if (sensor[2] == LIGNE) {
-    if (sensor[3] == LIGNE) droiteLent();
-    else if (sensor[1] == LIGNE) gaucheLent();
-    else avancer();
+    if (sensor[3] == LIGNE) {
+      droiteLent(baseVitesse);
+    }
+    else if (sensor[1] == LIGNE) {
+      gaucheLent(baseVitesse);
+    }
+    else avancer(baseVitesse);
     dernierDirection = "AVANT";
   }
+  
+  // --- Ligne perdue ---
   else if (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND) {
     rechercherLigne();
     dernierDirection = "U";
   }
   else {
-    avancer();
+    avancer(baseVitesse);
     dernierDirection = "AVANT";
   }
 }
-

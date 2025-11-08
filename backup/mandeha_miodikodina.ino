@@ -4,7 +4,7 @@
 #define capteurCentralDroit 4
 #define capteurExtremeDroit 5
 
-#define baseVitesse 55
+#define baseVitesse 70
 #define tournageVitesse 50
 #define tournageVitesseMax 75
 
@@ -15,9 +15,7 @@
 #define IN3 9
 #define IN4 8
 
-char chemin[501];
-int cheminLen = 0;
-char dernierDirection = '\0';
+String dernierDirection = "";
 
 int sensor[5] = {0,0,0,0,0};
 
@@ -34,7 +32,6 @@ void setup() {
   pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
   Serial.begin(9600);
   delay(1000);
-  chemin[0] = '\0';
 }
 
 /* === Fonctions de base de mouvement === */
@@ -45,11 +42,11 @@ void reculer(int v){ reculer_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 
 void gauche_(){ digitalWrite(IN1,HIGH); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,HIGH); }
 void gauche(int v){ gauche_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void gaucheLent(int v){ avancer_(); analogWrite(ENA,v*0.9); analogWrite(ENB,v); }
+void gaucheLent(int v){ avancer_(); analogWrite(ENA,v*0.8); analogWrite(ENB,v); }
 
 void droite_(){ digitalWrite(IN1,LOW); digitalWrite(IN2,HIGH); digitalWrite(IN3,HIGH); digitalWrite(IN4,LOW); }
 void droite(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v); }
-void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v*0.9); }
+void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v*0.8); }
 
 void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,LOW); analogWrite(ENA,0); analogWrite(ENB,0); }
 
@@ -62,88 +59,49 @@ void readSensor(){
   sensor[4]=digitalRead(capteurExtremeDroit);
 }
 
-char getSymmetricDirection(char* chemin) {
-  int posU = -1;
-  for (int i = cheminLen - 1; i >= 0; i--) {
-    if (chemin[i] == 'U') { posU = i; break; }
-  }
-  if (posU == -1) return '\0';
-  char apresU[100] = "";
-  int lenA = 0;
-  for (int i = posU + 1; i < cheminLen; i++) {
-    char c = chemin[i];
-    if (c == 'a' || c == 'g' || c == 'd' || c == 'A' || c == 'G' || c == 'D') {
-      apresU[lenA++] = c;
-    }
-  }
-  apresU[lenA] = '\0';
-  int n = lenA;
-  if (n == 0) return '\0';
-  char avantU[100] = "";
-  int lenB = 0;
-  for (int i = 0; i < posU; i++) {
-    char c = chemin[i];
-    if (c == 'a' || c == 'g' || c == 'd' || c == 'A' || c == 'G' || c == 'D') {
-      avantU[lenB++] = c;
-    }
-  }
-  
-  avantU[lenB] = '\0';
-  if (lenB < n + 1) return '\0';
-  int indexAvant = lenB - (n + 1);
-  char dir = avantU[indexAvant];
-  if (dir == 'g' || dir == 'G' || dir == 'a' || dir == 'A' || dir == 'd' || dir == 'D') return dir;
-  return '\0';
-}
-
-void enregistrerChemin(char c) {
-  chemin[cheminLen++] = c;
-  chemin[cheminLen] = '\0';
-}
-
 /* === Virage 90° === */
 
-void tourner(char direction) {
-  if (direction == 'G') {
+void tourner(String direction) {
+  if (direction == "GAUCHE") {
     gauche(tournageVitesse);delay(100);
     gaucheLent(baseVitesse);delay(100);
     gauche(tournageVitesse);
   }
-  else if (direction == 'D') {
+  else if (direction == "DROITE") {
     droite(tournageVitesse);delay(100);
     droiteLent(baseVitesse);delay(100);
     droite(tournageVitesse);
   }
 }
 
-void virage90(char direction) {
+void virage90(String direction) {
   unsigned long start = millis();
   const int timeout = 3000;
   dernierDirection = direction;
 
-  if (direction == 'G') {
+  if (direction == "GAUCHE") {
     // tourner(direction);
     gaucheLent(tournageVitesse);delay(100);
     while (millis() - start < timeout) { // tourne environ 90°
       gauche(tournageVitesse);
       readSensor();
-      if ((sensor[3]==LIGNE || sensor[4]==LIGNE) && (sensor[0]==FOND && sensor[1]==FOND)) {
+      if ((sensor[3]==LIGNE || sensor[4]==LIGNE) && (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND)) {
+        if (sensor[3]==LIGNE)droiteLent(baseVitesse);
         break;
       }
-      if (sensor[3]==LIGNE)droiteLent(baseVitesse);
       // delay(10);
     }
   } 
-  else if (direction == 'D') {
+  else if (direction == "DROITE") {
     // tourner(direction);
     gaucheLent(tournageVitesse);delay(100);
     while (millis() - start < timeout) {
       droite(tournageVitesse);
       readSensor();
-      if ((sensor[1]==LIGNE || sensor[0]==LIGNE) && (sensor[2]==FOND && sensor[3]==FOND)) {
+      if ((sensor[1]==LIGNE || sensor[0]==LIGNE) && (sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND)) {
+        if (sensor[1]==LIGNE)gaucheLent(baseVitesse);
         break;
       }
-      if (sensor[1]==LIGNE)gaucheLent(baseVitesse);
       // delay(10);
     }
   }
@@ -153,16 +111,16 @@ void virage90(char direction) {
 /* === Recherche de ligne perdue === */
 void rechercherLigne() {
   unsigned long start = millis();
-  if (dernierDirection == 'G') {
-    droite(tournageVitesseMax);delay(250);
-    // dernierDirection = 'D';
+  if (dernierDirection == "GAUCHE") {
+    droite(tournageVitesseMax);delay(150);
+    // dernierDirection = "DROITE";
     while (millis() - start < 3000) {
       readSensor();
       if (sensor[1]==LIGNE || sensor[0]==LIGNE) return;
     }
   } else {
-    gauche(tournageVitesseMax);delay(250);
-    // dernierDirection = 'G';
+    gauche(tournageVitesseMax);delay(150);
+    // dernierDirection = "GAUCHE";
     while (millis() - start < 3000) {
       readSensor();
       if (sensor[3]==LIGNE || sensor[4]==LIGNE) return;
@@ -175,42 +133,13 @@ void rechercherLigne() {
 void loop() {
   readSensor();
 
-  char dirSym = getSymmetricDirection(chemin);
-  if (sensor[0]==LIGNE && (sensor[1]==LIGNE || sensor[2]==LIGNE || sensor[3]==LIGNE) && sensor[4]==LIGNE) {
-    if(dirSym=='D' || dirSym=='d'){
-      virage90('D');enregistrerChemin('D');
-      dernierDirection = 'D';
-    }else if (dirSym=='G' || dirSym=='A' || dirSym=='g'){
-      virage90('G');
-      dernierDirection = 'G';enregistrerChemin('G');
-    }else {
-      virage90('D');
-      dernierDirection = 'D';enregistrerChemin('D');
-    }
-  }
-
-  else if (sensor[4] == LIGNE) {
-    virage90('D');enregistrerChemin('d');
-    dernierDirection = 'D';
+  if (sensor[4] == LIGNE) {
+    virage90("DROITE");
+    dernierDirection = "DROITE";
   }
   else if (sensor[0] == LIGNE) {
-    avancer(baseVitesse);delay(100);stop();
-    readSensor();
-    if (sensor[1]==LIGNE || sensor[2]==LIGNE || sensor[3]==LIGNE){
-      if (sensor[3] == LIGNE) {
-        droiteLent(baseVitesse);
-      }
-      else if (sensor[1] == LIGNE) {
-        gaucheLent(baseVitesse);
-      }
-      else if (sensor[2] == LIGNE)  avancer(baseVitesse);
-      dernierDirection = 'A';enregistrerChemin('A');
-    }
-    else {
-      reculer(baseVitesse);delay(100);
-      virage90('G');
-      dernierDirection = 'G';enregistrerChemin('g');
-    }
+    virage90("GAUCHE");
+    dernierDirection = "GAUCHE";
   }
 
   // --- Ligne centrale ---
@@ -222,16 +151,16 @@ void loop() {
       gaucheLent(baseVitesse);
     }
     else avancer(baseVitesse);
-    dernierDirection = 'A';enregistrerChemin('a');
+    dernierDirection = "AVANT";
   }
   
   // --- Ligne perdue ---
   else if (sensor[0]==FOND && sensor[1]==FOND && sensor[2]==FOND && sensor[3]==FOND && sensor[4]==FOND) {
     rechercherLigne();
-    dernierDirection = "U";enregistrerChemin('U');
+    dernierDirection = "U";
   }
   else {
     avancer(baseVitesse);
-    dernierDirection = 'A';enregistrerChemin('a');
+    dernierDirection = "AVANT";
   }
 }
