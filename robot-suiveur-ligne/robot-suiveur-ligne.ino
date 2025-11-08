@@ -1,8 +1,11 @@
+#include <EEPROM.h>
+
 #define capteurExtremeGauche 2
 #define capteurCentralGauche 3
 #define capteurCentral 12
 #define capteurCentralDroit 4
 #define capteurExtremeDroit 5
+// #define interrupteur 13
 
 #define baseVitesse 55
 #define tournageVitesse 50
@@ -18,6 +21,8 @@
 char chemin[501];
 int cheminLen = 0;
 char dernierDirection = '\0';
+char etat = '+';
+bool finDeParcours = false;
 
 int sensor[5] = {0,0,0,0,0};
 
@@ -32,6 +37,9 @@ void setup() {
   pinMode(capteurExtremeDroit, INPUT);
   pinMode(ENA, OUTPUT); pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+
+  // pinMode(interrupteur, INPUT);
+
   Serial.begin(9600);
   delay(1000);
   chemin[0] = '\0';
@@ -52,6 +60,92 @@ void droite(int v){ droite_(); analogWrite(ENA,v); analogWrite(ENB,v); }
 void droiteLent(int v){ avancer_(); analogWrite(ENA,v); analogWrite(ENB,v*0.9); }
 
 void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW); digitalWrite(IN4,LOW); analogWrite(ENA,0); analogWrite(ENB,0); }
+
+// LOAD EEPROM
+
+void sauvegarderEEPROM() {
+  for (int i = 0; i < cheminLen; i++) {
+    EEPROM.write(i, chemin[i]);
+  }
+  EEPROM.write(cheminLen, '\0');
+}
+
+void chargerEEPROM() {
+  int i = 0;
+  char c;
+  while ((c = EEPROM.read(i)) != '\0' && i < 500) {
+    chemin[i++] = c;
+  }
+  cheminLen = i;
+  chemin[cheminLen] = '\0';
+}
+
+char symetrie(char d) {
+  if (d == 'g') return 'd';
+  if (d == 'd') return 'g';
+  if (d == 'a') return 'a';
+  if (d == 'G') return 'D';
+  if (d == 'D') return 'G';
+  if (d == 'A') return 'A';
+  return d;
+}
+
+// void enregistrerChemin(char c) {
+//   // 1️⃣ On garde toujours le chemin complet en RAM
+//   if (cheminLen < 500) {
+//     chemin[cheminLen++] = c;
+//     chemin[cheminLen] = '\0';
+//   }
+
+//   // 2️⃣ Lecture du dernier index EEPROM
+//   int lenEEPROM = 0;
+//   while (EEPROM.read(lenEEPROM) != '\0' && lenEEPROM < 500) lenEEPROM++;
+
+//   // 3️⃣ Lecture du dernier caractère stocké
+//   char dernierEEPROM = (lenEEPROM > 0) ? EEPROM.read(lenEEPROM - 1) : '\0';
+
+//   // 4️⃣ Logique d’optimisation
+//   if (etat == '+') {
+//     // On ajoute normalement
+//     EEPROM.write(lenEEPROM, c);
+//     EEPROM.write(lenEEPROM + 1, '\0');
+//   } 
+//   else if (etat == '-') {
+//     // Si symétrie détectée, on retire le dernier
+//     if (dernierEEPROM == symetrie(c)) {
+//       lenEEPROM--;
+//       EEPROM.write(lenEEPROM, '\0');
+//     } else {
+//       // Changement d’état → on ajoute à nouveau
+//       etat = '+';
+//       EEPROM.write(lenEEPROM, c);
+//       EEPROM.write(lenEEPROM + 1, '\0');
+//     }
+//   }
+
+//   // 5️⃣ Si on rencontre un 'U' → on inverse l’état
+//   if (c == 'U') {
+//     etat = (etat == '+') ? '-' : '+';
+//   }
+
+//   Serial.print("Chemin RAM: ");
+//   Serial.println(chemin);
+
+//   Serial.print("EEPROM: ");
+//   for (int i = 0; i < lenEEPROM + 1; i++) {
+//     char cc = EEPROM.read(i);
+//     if (cc == '\0') break;
+//     Serial.print(cc);
+//   }
+//   Serial.println();
+// }
+
+void enregistrerChemin(char c) {
+  if (cheminLen < 500) {
+    chemin[cheminLen++] = c;
+    chemin[cheminLen] = '\0';
+  }
+}
 
 /* === Lecture capteurs === */
 void readSensor(){
@@ -96,10 +190,7 @@ char getSymmetricDirection(char* chemin) {
   return '\0';
 }
 
-void enregistrerChemin(char c) {
-  chemin[cheminLen++] = c;
-  chemin[cheminLen] = '\0';
-}
+
 
 /* === Virage 90° === */
 
@@ -170,6 +261,7 @@ void rechercherLigne() {
   }
   // stop();
 }
+
 
 /* === BOUCLE PRINCIPALE === */
 void loop() {

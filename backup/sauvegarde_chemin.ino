@@ -21,7 +21,6 @@ char chemin[501];
 int cheminLen = 0;
 char dernierDirection = '\0';
 char etat = '+';
-bool finDeParcours = false;
 
 int sensor[5] = {0,0,0,0,0};
 
