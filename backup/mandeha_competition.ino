@@ -86,62 +86,62 @@ char symetrie(char d) {
   return d;
 }
 
-void enregistrerChemin(char c) {
-  // 1️⃣ On garde toujours le chemin complet en RAM
-  if (cheminLen < 500) {
-    chemin[cheminLen++] = c;
-    chemin[cheminLen] = '\0';
-  }
-
-  // 2️⃣ Lecture du dernier index EEPROM
-  int lenEEPROM = 0;
-  while (EEPROM.read(lenEEPROM) != '\0' && lenEEPROM < 500) lenEEPROM++;
-
-  // 3️⃣ Lecture du dernier caractère stocké
-  char dernierEEPROM = (lenEEPROM > 0) ? EEPROM.read(lenEEPROM - 1) : '\0';
-
-  // 4️⃣ Logique d’optimisation
-  if (etat == '+') {
-    // On ajoute normalement
-    EEPROM.write(lenEEPROM, c);
-    EEPROM.write(lenEEPROM + 1, '\0');
-  } 
-  else if (etat == '-') {
-    // Si symétrie détectée, on retire le dernier
-    if (dernierEEPROM == symetrie(c)) {
-      lenEEPROM--;
-      EEPROM.write(lenEEPROM, '\0');
-    } else {
-      // Changement d’état → on ajoute à nouveau
-      etat = '+';
-      EEPROM.write(lenEEPROM, c);
-      EEPROM.write(lenEEPROM + 1, '\0');
-    }
-  }
-
-  // 5️⃣ Si on rencontre un 'U' → on inverse l’état
-  if (c == 'U') {
-    etat = (etat == '+') ? '-' : '+';
-  }
-
-  Serial.print("Chemin RAM: ");
-  Serial.println(chemin);
-
-  Serial.print("EEPROM: ");
-  for (int i = 0; i < lenEEPROM + 1; i++) {
-    char cc = EEPROM.read(i);
-    if (cc == '\0') break;
-    Serial.print(cc);
-  }
-  Serial.println();
-}
-
 // void enregistrerChemin(char c) {
+//   // 1️⃣ On garde toujours le chemin complet en RAM
 //   if (cheminLen < 500) {
 //     chemin[cheminLen++] = c;
 //     chemin[cheminLen] = '\0';
 //   }
+
+//   // 2️⃣ Lecture du dernier index EEPROM
+//   int lenEEPROM = 0;
+//   while (EEPROM.read(lenEEPROM) != '\0' && lenEEPROM < 500) lenEEPROM++;
+
+//   // 3️⃣ Lecture du dernier caractère stocké
+//   char dernierEEPROM = (lenEEPROM > 0) ? EEPROM.read(lenEEPROM - 1) : '\0';
+
+//   // 4️⃣ Logique d’optimisation
+//   if (etat == '+') {
+//     // On ajoute normalement
+//     EEPROM.write(lenEEPROM, c);
+//     EEPROM.write(lenEEPROM + 1, '\0');
+//   } 
+//   else if (etat == '-') {
+//     // Si symétrie détectée, on retire le dernier
+//     if (dernierEEPROM == symetrie(c)) {
+//       lenEEPROM--;
+//       EEPROM.write(lenEEPROM, '\0');
+//     } else {
+//       // Changement d’état → on ajoute à nouveau
+//       etat = '+';
+//       EEPROM.write(lenEEPROM, c);
+//       EEPROM.write(lenEEPROM + 1, '\0');
+//     }
+//   }
+
+//   // 5️⃣ Si on rencontre un 'U' → on inverse l’état
+//   if (c == 'U') {
+//     etat = (etat == '+') ? '-' : '+';
+//   }
+
+//   Serial.print("Chemin RAM: ");
+//   Serial.println(chemin);
+
+//   Serial.print("EEPROM: ");
+//   for (int i = 0; i < lenEEPROM + 1; i++) {
+//     char cc = EEPROM.read(i);
+//     if (cc == '\0') break;
+//     Serial.print(cc);
+//   }
+//   Serial.println();
 // }
+
+void enregistrerChemin(char c) {
+  if (cheminLen < 500) {
+    chemin[cheminLen++] = c;
+    chemin[cheminLen] = '\0';
+  }
+}
 
 /* === Lecture capteurs === */
 void readSensor(){

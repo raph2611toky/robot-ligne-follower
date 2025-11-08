@@ -20,9 +20,13 @@
 
 char chemin[501];
 int cheminLen = 0;
+char cheminAParcourir[501];
+int cheminActuel = 0;
+
 char dernierDirection = '\0';
 char etat = '+';
 bool finDeParcours = false;
+bool suivreChemin = false;
 
 int sensor[5] = {0,0,0,0,0};
 
@@ -63,11 +67,36 @@ void stop(){ digitalWrite(IN1,LOW); digitalWrite(IN2,LOW); digitalWrite(IN3,LOW)
 
 // LOAD EEPROM
 
-void sauvegarderEEPROM() {
+/* === FONCTIONS EEPROM === */
+
+void sauvegarderEEPROMOptimise() {
+  Serial.println("Sauvegarde EEPROM optimisée en cours...");
+
+  // Crée une version optimisée dans un buffer temporaire
+  char tmp[501];
+  int lenTmp = 0;
+  char last = '\0';
+
   for (int i = 0; i < cheminLen; i++) {
-    EEPROM.write(i, chemin[i]);
+    char c = chemin[i];
+    if (etat == '+') {
+      tmp[lenTmp++] = c;
+    } 
+    else if (etat == '-') {
+      if (lenTmp > 0 && tmp[lenTmp - 1] == symetrie(c)) lenTmp--;
+      else tmp[lenTmp++] = c;
+    }
+    if (c == 'U') etat = (etat == '+') ? '-' : '+';
   }
-  EEPROM.write(cheminLen, '\0');
+
+  tmp[lenTmp] = '\0';
+
+  // Écriture EEPROM
+  for (int i = 0; i < lenTmp; i++) EEPROM.write(i, tmp[i]);
+  EEPROM.write(lenTmp, '\0');
+
+  Serial.print("Chemin optimisé sauvegardé: ");
+  Serial.println(tmp);
 }
 
 void chargerEEPROM() {
@@ -80,6 +109,27 @@ void chargerEEPROM() {
   chemin[cheminLen] = '\0';
 }
 
+int compterCroisements() {
+  int n = 0;
+  for (int i = 0; i < cheminLen; i++) {
+    if (chemin[i] == 'G' || chemin[i] == 'D' || chemin[i] == 'A') n++;
+  }
+  return n;
+}
+
+void enregistrerChemin(char c) {
+  if (cheminLen < 500) {
+    chemin[cheminLen++] = c;
+    chemin[cheminLen] = '\0';
+  }
+
+  int nbCroisements = compterCroisements();
+  if (nbCroisements >= 8) {
+    sauvegarderEEPROMOptimise();
+  }
+}
+
+
 char symetrie(char d) {
   if (d == 'g') return 'd';
   if (d == 'd') return 'g';
@@ -88,63 +138,6 @@ char symetrie(char d) {
   if (d == 'D') return 'G';
   if (d == 'A') return 'A';
   return d;
-}
-
-// void enregistrerChemin(char c) {
-//   // 1️⃣ On garde toujours le chemin complet en RAM
-//   if (cheminLen < 500) {
-//     chemin[cheminLen++] = c;
-//     chemin[cheminLen] = '\0';
-//   }
-
-//   // 2️⃣ Lecture du dernier index EEPROM
-//   int lenEEPROM = 0;
-//   while (EEPROM.read(lenEEPROM) != '\0' && lenEEPROM < 500) lenEEPROM++;
-
-//   // 3️⃣ Lecture du dernier caractère stocké
-//   char dernierEEPROM = (lenEEPROM > 0) ? EEPROM.read(lenEEPROM - 1) : '\0';
-
-//   // 4️⃣ Logique d’optimisation
-//   if (etat == '+') {
-//     // On ajoute normalement
-//     EEPROM.write(lenEEPROM, c);
-//     EEPROM.write(lenEEPROM + 1, '\0');
-//   } 
-//   else if (etat == '-') {
-//     // Si symétrie détectée, on retire le dernier
-//     if (dernierEEPROM == symetrie(c)) {
-//       lenEEPROM--;
-//       EEPROM.write(lenEEPROM, '\0');
-//     } else {
-//       // Changement d’état → on ajoute à nouveau
-//       etat = '+';
-//       EEPROM.write(lenEEPROM, c);
-//       EEPROM.write(lenEEPROM + 1, '\0');
-//     }
-//   }
-
-//   // 5️⃣ Si on rencontre un 'U' → on inverse l’état
-//   if (c == 'U') {
-//     etat = (etat == '+') ? '-' : '+';
-//   }
-
-//   Serial.print("Chemin RAM: ");
-//   Serial.println(chemin);
-
-//   Serial.print("EEPROM: ");
-//   for (int i = 0; i < lenEEPROM + 1; i++) {
-//     char cc = EEPROM.read(i);
-//     if (cc == '\0') break;
-//     Serial.print(cc);
-//   }
-//   Serial.println();
-// }
-
-void enregistrerChemin(char c) {
-  if (cheminLen < 500) {
-    chemin[cheminLen++] = c;
-    chemin[cheminLen] = '\0';
-  }
 }
 
 /* === Lecture capteurs === */
